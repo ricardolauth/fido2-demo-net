@@ -6,6 +6,7 @@ using Fido2NetLib.Objects;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace fido2_demo.Controllers
@@ -25,26 +26,37 @@ namespace fido2_demo.Controllers
         {
             try
             {
-                // lookup the user in th db
+                var actor = HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Actor)?.Value;
+
+                // lookup the username in th db
                 var userDb = await _dbContext.Users.AsNoTracking()
                     .Include(u => u.Credentials)
-                    .FirstOrDefaultAsync(u => u.Id == user.Id);
+                    .FirstOrDefaultAsync(u => u.Username == user.Username);
 
-                // if the user not exist we create him
-                if (userDb == null)
+                // if the user  exist we override
+                if (userDb != null)
+                {
+                    if(actor != null && Guid.Parse(actor) == userDb.Id)
+                    {
+                        user = userDb;
+                    }
+                    else
+                    {
+                        return new CredentialCreateOptions { Status = "error", ErrorMessage = "Userame already exists" };
+                    }                    
+                }
+                else
                 {
                     if (string.IsNullOrEmpty(user.Username))
                     {
-                        user.Username = $"Nameless user created on {DateTime.Now}";
+                        user.Username = $"Nameless user created on {DateTime.UtcNow}";
                     }
 
-                    var entityEntry = await _dbContext.AddAsync(user);
-                    await _dbContext.SaveChangesAsync();
-                    userDb = entityEntry.Entity;
+                    user.Id = Guid.NewGuid();
                 }
 
                 // get all previous registred credentialDescriptors for the current user
-                var excludeCredentials = userDb.Credentials.Select(c => new PublicKeyCredentialDescriptor(GetBytes(c.Id))).ToList();
+                var excludeCredentials = user.Credentials.Select(c => new PublicKeyCredentialDescriptor(GetBytes(c.Id))).ToList();
 
 
                 // 3. Create options -- defaults are the recommandation of WebAuthn?
@@ -74,17 +86,17 @@ namespace fido2_demo.Controllers
         }
 
         [HttpPost("createCredential", Name = nameof(CreateCredential))]
-        public async Task CreateCredential([FromBody] AuthenticatorAttestationRawResponse rawResponse)
+        public async Task<ActionResult<string>> CreateCredential([FromBody] AuthenticatorAttestationRawResponse rawResponse)
         {
             var response = JsonSerializer.Deserialize<AuthenticatorResponse>(rawResponse.Response.ClientDataJson);
             if (response == null || !_memoryCache.TryGetValue<CredentialCreateOptions>($"{nameof(CredentialCreateOptions)}/{GetString(response.Challenge)}", out var options))
             {
-                return;
+                return BadRequest("Can't find options, maybe expired");
             }
 
             if(options == null)
             {
-                return;
+                return BadRequest("Options are null");
             }
 
             // 2. Create callback so that lib can verify credential id is unique to this user
@@ -102,8 +114,22 @@ namespace fido2_demo.Controllers
             if (result.Status is "error" || result.Result is null)
             {
                 // return BadRequest(result.ErrorMessage ?? string.Empty);
-                return;
+                return BadRequest(result.ErrorMessage ?? "Verification returned null");
             }
+
+            var userExits = await _dbContext.Users.AsNoTracking().AnyAsync(u => u.Username == result.Result.User.Name);
+            if (!userExits)
+            {
+                User user = new()
+                {
+                    Id = new Guid(result.Result.User.Id),
+                    Username = result.Result.User.Name,
+                    DisplayName = result.Result.User.DisplayName
+                };
+
+                _dbContext.Users.Add(user);
+            }
+          
 
             var credential = new Credential
             {
@@ -119,7 +145,7 @@ namespace fido2_demo.Controllers
             _dbContext.Credentials.Add(credential);
             await _dbContext.SaveChangesAsync();
 
-            return;
+            return Ok(_jwtUtils.GenerateToken(credential.UserId));
         }
 
         [HttpGet("assertion-options")]

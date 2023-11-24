@@ -18,7 +18,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(option =>
 {
-    option.SwaggerDoc("v1", new OpenApiInfo { Title = "Demo API", Version = "v1" });
+    option.SwaggerDoc("v1", new OpenApiInfo { Title = "Fido Demo API", Version = "v1" });
     option.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -47,6 +47,8 @@ builder.Services.AddSwaggerGen(option =>
 // Use the in-memory implementation of IDistributedCache.
 builder.Services.AddMemoryCache();
 builder.Services.AddDistributedMemoryCache();
+
+builder.Services.AddApplicationInsightsTelemetry();
 
 // Custom Services
 builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
@@ -128,18 +130,17 @@ builder.Services.AddFido2(options =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Fido 2 RP Demo");
-    });
-
     // Allow CORS in development
     app.UseCors(p => p.AllowAnyMethod().AllowAnyOrigin().AllowAnyHeader());
 }
+
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Fido 2 RP Demo");
+});
 
 app.UseHttpsRedirection();
 

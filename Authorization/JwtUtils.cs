@@ -5,6 +5,7 @@ using System.Text;
 
 namespace fido2_demo.Authorization
 {
+
     public interface IJwtUtils
     {
         public string GenerateToken(Guid userId);
@@ -27,19 +28,20 @@ namespace fido2_demo.Authorization
 
         public string GenerateToken(Guid userId)
         {
+            var now = DateTime.UtcNow;
             var actor = userId.ToString();
             var handler = new JwtSecurityTokenHandler();
             var token = handler.CreateEncodedJwt(
                 _contextAccessor.HttpContext?.Request.Host.Host,
                 _contextAccessor.HttpContext?.Request.Headers.Referer,
                 new ClaimsIdentity(new Claim[] { new(ClaimTypes.Actor, actor) }),
-                DateTime.Now.Subtract(TimeSpan.FromMinutes(1)),
-                DateTime.Now.AddDays(1),
-                DateTime.Now,
+                now.Subtract(TimeSpan.FromMinutes(1)),
+                now.AddDays(1),
+                now,
                 _signingCredentials,
-                null);
+                null) ?? throw new Exception("Couldn't create the token");
 
-            return token ?? throw new Exception("Couldn't create the token");
+            return token;
         }
     }
 }
