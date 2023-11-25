@@ -145,7 +145,8 @@ namespace fido2_demo.Controllers
             _dbContext.Credentials.Add(credential);
             await _dbContext.SaveChangesAsync();
 
-            return Ok(_jwtUtils.GenerateToken(credential.UserId));
+            var token = _jwtUtils.GenerateToken(credential.UserId);
+            return Ok(token is null ? throw new Exception("Token couldn't be created") : $"Bearer {token}");
         }
 
         [HttpGet("assertion-options")]
@@ -246,19 +247,6 @@ namespace fido2_demo.Controllers
         private static byte[] GetBytes(string str)
         {
             return Convert.FromBase64String(str);
-        }
-
-        [HttpPost("testtoken")]
-        public async Task<string> GetOrAdd(User user)
-        {
-            var userDb = await _dbContext.Users.FirstOrDefaultAsync(user => user.Username == user.Username);
-            if (userDb == null)
-            {
-                 userDb = _dbContext.Add(user).Entity;
-                _dbContext.SaveChanges();
-            }
-
-            return _jwtUtils.GenerateToken(userDb.Id);
         }
     }
 }

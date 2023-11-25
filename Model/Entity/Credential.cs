@@ -13,6 +13,6 @@ namespace fido2_demo.Model.Entity
         public DateTime RegDate { get; set; }
 
         [ForeignKey(nameof(UserId))]
-        public User User { get; set; } = null!;
+        public User? User { get; set; }
     }
 }
