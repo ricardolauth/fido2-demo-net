@@ -76,7 +76,7 @@ namespace fido2_demo.Controllers
                 };
 
                 var options = _fido2.RequestNewCredential(fidoUser, excludeCredentials, authenticatorSelection, AttestationConveyancePreference.Direct);
-                _memoryCache.Set($"{nameof(CredentialCreateOptions)}/{GetString(options.Challenge)}", options, TimeSpan.FromMilliseconds(options.Timeout));
+                _memoryCache.Set($"{nameof(CredentialCreateOptions)}/{GetString(options.Challenge)}", options, TimeSpan.FromMilliseconds(options.Timeout * 3));
 
                 return options;
             } catch (Exception ex)
@@ -145,8 +145,8 @@ namespace fido2_demo.Controllers
             _dbContext.Credentials.Add(credential);
             await _dbContext.SaveChangesAsync();
 
-            var token = _jwtUtils.GenerateToken(credential.UserId);
-            return Ok(token is null ? throw new Exception("Token couldn't be created") : $"Bearer {token}");
+            var token = _jwtUtils.GenerateToken(credential.UserId) ?? throw new Exception("Token couldn't be created");
+            return Ok(token);
         }
 
         [HttpGet("assertion-options")]
@@ -171,7 +171,7 @@ namespace fido2_demo.Controllers
                 // 4. Temporarily store options, session/in-memory cache/redis/db
                 _memoryCache.Set($"{nameof(AssertionOptions)}/{GetString(options.Challenge)}", 
                     options, 
-                    TimeSpan.FromMilliseconds(options.Timeout));
+                    TimeSpan.FromMilliseconds(options.Timeout * 3));
 
                 // 5. return options to client
                 return options;
@@ -183,7 +183,7 @@ namespace fido2_demo.Controllers
         }
 
         [HttpPost("assertion")]
-        public async Task<string> MakeAssertionAsync([FromBody] AuthenticatorAssertionRawResponse clientResponse,
+        public async Task<ActionResult<string>> MakeAssertionAsync([FromBody] AuthenticatorAssertionRawResponse clientResponse,
        CancellationToken cancellationToken)
         {
             // 1. Get the assertion options we sent the client remove them from memory so they can't be used again
@@ -191,7 +191,7 @@ namespace fido2_demo.Controllers
             var key = $"{nameof(AssertionOptions)}/{GetString(response.Challenge)}";
             if (!_memoryCache.TryGetValue<AssertionOptions>($"{nameof(AssertionOptions)}/{GetString(response.Challenge)}", out var options))
             {
-                throw new Exception("Challenge not found, please get a new one via GET /assertion-options");
+                return NotFound("Challenge not found, please get a new one via GET /assertion-options");
             }
             _memoryCache.Remove(key);
 
@@ -202,8 +202,14 @@ namespace fido2_demo.Controllers
 
             // 2. Get registered credential from database
             var credentialId = GetString(clientResponse.Id);
-            var credential = await _dbContext.Credentials.FirstOrDefaultAsync(c => c.Id == credentialId, cancellationToken: cancellationToken) 
-                ?? throw new Exception("Unkown Credential");
+            var credential = await _dbContext.Credentials.FirstOrDefaultAsync(c => c.Id == credentialId, cancellationToken: cancellationToken);
+
+            if (credential == null)
+            {
+                return NotFound("Credetial not found");
+            }
+
+   
 
             // 2. Create callback so that lib can verify credential id is unique to this user
             async Task<bool> callback(IsUserHandleOwnerOfCredentialIdParams args, CancellationToken cancellationToken)
@@ -226,16 +232,16 @@ namespace fido2_demo.Controllers
             // 4. Store the updated counter
             if (res.Status is not "ok")
             {
-                throw new Exception(res.ErrorMessage);
+                return ValidationProblem(res.ErrorMessage);
             }
 
             credential.SignatureCounter = res.Counter;
             _dbContext.Update(credential);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
-            var token = _jwtUtils.GenerateToken(credential.UserId);
+            var token = _jwtUtils.GenerateToken(credential.UserId) ?? throw new Exception("Token couldn't be created");
 
-            return token is null ? throw new Exception("Token couldn't be created") : $"Bearer {token}";
+            return token;
         }
 
         // Helpers
