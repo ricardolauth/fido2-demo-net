@@ -10,6 +10,14 @@ namespace fido2_demo.Model
         public DbSet<User> Users { get; set; }
         public DbSet<Credential> Credentials { get; set; }
 
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+            modelBuilder.HasCharSet(null, DelegationModes.ApplyToDatabases);
+        }
+
+
+
         public override int SaveChanges()
         {
             OnBeforeSaving();
