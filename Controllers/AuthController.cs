@@ -247,12 +247,12 @@ namespace fido2_demo.Controllers
         // Helpers
         private static string GetString(byte[] arr)
         {
-            return Convert.ToBase64String(arr);
+            return Base64Url.Encode(arr);
         }
 
         private static byte[] GetBytes(string str)
         {
-            return Convert.FromBase64String(str);
+           return Base64Url.Decode(str);
         }
     }
 }

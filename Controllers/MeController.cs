@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Web;
+using Fido2NetLib;
+using System.Reflection.PortableExecutable;
 
 namespace fido2_demo.Controllers
 {
@@ -72,9 +74,9 @@ namespace fido2_demo.Controllers
                 return BadRequest("Could not access your identity");
             }
 
-            var decodedId = HttpUtility.UrlDecode(id); // some characters like / aren't allowed to be used in url parameters because they have a special meaning in an url context
+            //var decodedId = Base64Url.Encode(id); // some characters like / aren't allowed to be used in url parameters because they have a special meaning in an url context
             var credential = await _dbContext.Credentials.AsNoTracking()
-                .FirstOrDefaultAsync(c => c.UserId == Guid.Parse(actor) && c.Id == decodedId);
+                .FirstOrDefaultAsync(c => c.UserId == Guid.Parse(actor) && c.Id == id);
 
             if (credential == null)
             {
