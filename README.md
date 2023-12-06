@@ -7,4 +7,4 @@ protected endpoints of the ME Controller.
 Don't use this repository and it's architecture as a template for productive projects. 
 It doesn'tt follow common best practices in many ways. 
 ## Documentation
-A Interactive [swaager-doc](fido2-demo.azurewebsites.net/swagger) describes all available endpoints.
+A Interactive [swaager-doc](https://fido2-demo.azurewebsites.net/swagger) describes all available endpoints.
